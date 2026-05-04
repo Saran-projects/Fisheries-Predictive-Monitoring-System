@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dcterms:dc xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://purl.org/dc/elements/1.1/ https://dublincore.org/schemas/xmls/qdc/2008/02/11/dcterms.xsd">
+  <dc:title>SYNTHESEAS: Datasets supporting the provisioning Ecosystem Service Value Chain of Wild caught fish, non-edible fish and farmed fish biomass for Wet Tropics, Cape York and Fitzroy NRM regions</dc:title>
+  <dc:creator>Anthea Coggan</dc:creator>
+  <dc:subject>Sociology of culture</dc:subject>
+  <dc:subject>Socio-economic development</dc:subject>
+  <dc:subject>Cultural geography</dc:subject>
+  <dc:subject>Economic geography</dc:subject>
+  <dc:subject>Political economy and social change</dc:subject>
+  <dc:subject>Other human society not elsewhere classified</dc:subject>
+  <dc:description>The SEABORNE (Sustainable UsE And Benefits fOR mariNE) has consolidated and synthesised existing information about who is using the Reef, how it is being used and what the benefits are from this use. This dataset pertains to provisioning ecosystem service - wild fish and non-edible fish and farmed fish biomass and provides values for various fishery types, biomass (kg) and other economic values.</dc:description>
+  <dc:publisher>CSIRO</dc:publisher>
+  <dc:contributor>Petina Pert</dc:contributor>
+  <dc:contributor>Jeremy De Valck</dc:contributor>
+  <dc:contributor>Victoria Graham</dc:contributor>
+  <dc:contributor>Diane Jarvis</dc:contributor>
+  <dc:type />
+  <dc:format />
+  <dc:identifier>https://doi.org/10.25919/6mpf-2q17</dc:identifier>
+  <dc:language />
+  <dcterms:temporal xsi:type="dcterms:Period">start=2021-11-01; end=2024-07-31</dcterms:temporal>
+  <dcterms:spatial xsi:type="dcterms:Box">northlimit=-14.9971; southlimit=-26.2400; westlimit=145.2576; eastLimit=153.6497; projection=WGS84</dcterms:spatial>
+  <dc:rights />
+</dcterms:dc>
