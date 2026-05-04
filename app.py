@@ -11,7 +11,7 @@ import pydeck as pdk
 # PAGE CONFIGURATION
 # -------------------------------------------------------------------
 st.set_page_config(
-    page_title="Fisheries Predictive Monitoring",
+    page_title="Global Fisheries Predictive Monitoring",
     page_icon="🌊",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -51,17 +51,7 @@ st.markdown("""
 @st.cache_resource
 def load_model():
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-    model_path = os.path.join(BASE_DIR, "models", "model.pkl")
-    
-    # Temporary debug logs
-    print("--- DEBUG INFO ---")
-    print("Current Working Directory:", os.getcwd())
-    print("BASE_DIR:", BASE_DIR)
-    if os.path.exists(BASE_DIR):
-        print("Files in BASE_DIR:", os.listdir(BASE_DIR))
-    print("Model Path:", model_path)
-    print("Model exists:", os.path.exists(model_path))
-    print("------------------")
+    model_path = os.path.join(BASE_DIR, "models", "global_model.pkl")
     
     if not os.path.exists(model_path):
         return None
@@ -71,26 +61,11 @@ def load_model():
 @st.cache_data
 def load_data():
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-    file_path = os.path.join(BASE_DIR, "data.xlsx")
-    
-    # Temporary debug logs
-    print("--- DEBUG INFO ---")
-    print("Data Path:", file_path)
-    print("Data exists:", os.path.exists(file_path))
-    print("------------------")
+    file_path = os.path.join(BASE_DIR, "global_data.csv")
     
     if not os.path.exists(file_path):
         return pd.DataFrame()
-    df = pd.read_excel(file_path)
-    def clean_year(y):
-        if pd.isna(y):
-            return 2020
-        y = str(y)
-        if '/' in y:
-            return int(y.split('/')[0])
-        return int(y)
-    if 'year' in df.columns:
-        df['year_int'] = df['year'].apply(clean_year)
+    df = pd.read_csv(file_path)
     return df
 
 model_data = load_model()
@@ -101,65 +76,103 @@ if not model_data or full_df.empty:
     st.stop()
 
 model = model_data['model']
-le_mg = model_data['le_mg']
-le_region = model_data['le_region']
-le_fishery = model_data['le_fishery']
+le_country = model_data['le_country']
+le_species = model_data['le_species']
+le_area = model_data['le_area']
 
-mg_classes = model_data['mg_classes']
-region_classes = model_data['region_classes']
-fishery_classes = model_data['fishery_classes']
+country_classes = model_data['country_classes']
+species_classes = model_data['species_classes']
+area_classes = model_data['area_classes']
 
 # -------------------------------------------------------------------
 # SIDEBAR
 # -------------------------------------------------------------------
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/2942/2942102.png", width=80)
 st.sidebar.title("Configuration")
-st.sidebar.markdown("Adjust parameters to simulate and predict future biomass.")
+st.sidebar.markdown("Adjust parameters to simulate and predict future production.")
 
-st.sidebar.subheader("Location & Fishery")
-sel_mgArea = st.sidebar.selectbox("Management Area", mg_classes)
-sel_region = st.sidebar.selectbox("Specific Region", region_classes)
-sel_fishery = st.sidebar.selectbox("Fishery Type", fishery_classes)
+st.sidebar.subheader("Location & Species")
+# Add searching to make it easier for users with long lists
+sel_country = st.sidebar.selectbox("Country", country_classes, index=country_classes.index("United States of America") if "United States of America" in country_classes else 0)
+
+# Filter species and area options based on selected country to avoid invalid combinations
+filtered_by_country = full_df[full_df['Country'] == sel_country]
+available_species = filtered_by_country['Species'].unique().tolist() if not filtered_by_country.empty else species_classes
+
+sel_species = st.sidebar.selectbox("Species", sorted(available_species))
+
+# Filter areas based on country + species
+filtered_by_country_species = filtered_by_country[filtered_by_country['Species'] == sel_species]
+available_areas = filtered_by_country_species['Area'].unique().tolist() if not filtered_by_country_species.empty else area_classes
+
+sel_area = st.sidebar.selectbox("Water Area", sorted(available_areas))
 
 st.sidebar.subheader("Time")
-# Assume current year is around 2026, let's predict up to 2030
-current_year = int(full_df['year_int'].max()) if 'year_int' in full_df.columns else 2024
+current_year = int(full_df['Year'].max()) if 'Year' in full_df.columns else 2026
 sel_year = st.sidebar.slider("Prediction Year", min_value=2000, max_value=2035, value=current_year + 1, step=1)
 
 # -------------------------------------------------------------------
 # INFERENCE
 # -------------------------------------------------------------------
-# Transform inputs
-mg_enc = le_mg.transform([sel_mgArea])[0]
-reg_enc = le_region.transform([sel_region])[0]
-fish_enc = le_fishery.transform([sel_fishery])[0]
-
+# Transform inputs safely (fallback to 0 if not found)
+try:
+    country_enc = le_country.transform([sel_country])[0]
+except ValueError:
+    country_enc = 0
+    
+try:
+    species_enc = le_species.transform([sel_species])[0]
+except ValueError:
+    species_enc = 0
+    
+try:
+    area_enc = le_area.transform([sel_area])[0]
+except ValueError:
+    area_enc = 0
 # Prepare feature dataframe
-X = pd.DataFrame([[mg_enc, reg_enc, fish_enc, sel_year]], 
-                 columns=['mgArea_enc', 'region_enc', 'fishery_enc', 'year_int'])
+X = pd.DataFrame([[country_enc, species_enc, area_enc, sel_year]], 
+                 columns=['Country_Enc', 'Species_Enc', 'Area_Enc', 'Year'])
 
-# Predict
-pred_biomass = model.predict(X)[0]
+# Predict with XGBoost
+pred_production = model.predict(X)[0]
 
-# Calculate Risk based on THIS SPECIFIC selection, not the global sum
+# Calculate historical data for this specific selection
 filtered_df = full_df[
-    (full_df['mgArea'] == sel_mgArea) & 
-    (full_df['region'] == sel_region) & 
-    (full_df['fishery_type'] == sel_fishery)
+    (full_df['Country'] == sel_country) & 
+    (full_df['Species'] == sel_species) & 
+    (full_df['Area'] == sel_area)
 ]
 
-hist_df = filtered_df.groupby('year_int')['wildfishBiomass_kg'].sum().reset_index() if not filtered_df.empty else pd.DataFrame(columns=['year_int', 'wildfishBiomass_kg'])
+hist_df = filtered_df.groupby('Year')['Production_Quantity'].sum().reset_index() if not filtered_df.empty else pd.DataFrame(columns=['Year', 'Production_Quantity'])
 
-avg_biomass = hist_df['wildfishBiomass_kg'].mean() if not hist_df.empty else pred_biomass * 1.5
-if pd.isna(avg_biomass) or avg_biomass == 0:
-    avg_biomass = pred_biomass * 1.5
+# Add a linear trend for future years since tree-based models cannot extrapolate
+max_hist_year = hist_df['Year'].max() if not hist_df.empty else current_year
 
-if pred_biomass < avg_biomass * 0.5:
+if sel_year > max_hist_year and not hist_df.empty and len(hist_df) >= 2:
+    # Calculate simple trend from the last 5 years of historical data
+    recent_hist = hist_df.sort_values('Year').tail(5)
+    if len(recent_hist) > 1:
+        x_vals = recent_hist['Year'].values
+        y_vals = recent_hist['Production_Quantity'].values
+        slope = np.polyfit(x_vals, y_vals, 1)[0]
+        
+        # Apply the trend (slope) to the base XGBoost prediction
+        years_ahead = sel_year - max_hist_year
+        pred_production = pred_production + (slope * years_ahead)
+
+# Prevent negative predictions after applying trend
+pred_production = max(0, pred_production)
+
+avg_production = hist_df['Production_Quantity'].mean() if not hist_df.empty else pred_production * 1.5
+if pd.isna(avg_production) or avg_production == 0:
+    avg_production = max(pred_production * 1.5, 1.0) # Avoid division by zero
+
+if pred_production < avg_production * 0.5:
     risk_status = "Critical"
     risk_color = "risk-critical"
     risk_hex = "#EF4444"
     quota_action = "HALT FISHING (0% Quota)"
-elif pred_biomass < avg_biomass * 0.8:
+elif pred_production < avg_production * 0.8:
     risk_status = "Warning"
     risk_color = "risk-warning"
     risk_hex = "#F59E0B"
@@ -174,10 +187,10 @@ else:
 # -------------------------------------------------------------------
 # MAIN DASHBOARD
 # -------------------------------------------------------------------
-st.title("🌊 Fisheries Predictive Monitoring System")
+st.title("🌍 Global Fisheries Predictive Monitoring System")
 st.markdown("""
-Welcome to the **Smart Map Dashboard**. This tool uses AI (XGBoost) to predict future fish population health based on historical data. 
-Configure the parameters on the left to see how populations might shift in different regions over time.
+Welcome to the **Global Smart Map Dashboard**. This tool uses AI (XGBoost) to predict future fish production/biomass 
+based on historical data from the global fisheries dataset. Configure the parameters on the left to see predictions.
 """)
 
 st.markdown("---")
@@ -188,8 +201,8 @@ col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.markdown(f"""
     <div class="kpi-card">
-        <div class="kpi-title">Predicted Biomass ({sel_year})</div>
-        <div class="kpi-value">{pred_biomass:,.0f} kg</div>
+        <div class="kpi-title">Predicted Prod. ({sel_year})</div>
+        <div class="kpi-value">{pred_production:,.0f} t</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -210,7 +223,9 @@ with col3:
     """, unsafe_allow_html=True)
 
 with col4:
-    confidence = np.random.uniform(85, 98) # Mock confidence score for demonstration
+    # Model confidence proxy (in a real app this would be based on model metrics)
+    confidence = min(98.0, max(60.0, 100 - (abs(pred_production - avg_production) / avg_production * 20)))
+    if pd.isna(confidence): confidence = 85.0
     st.markdown(f"""
     <div class="kpi-card">
         <div class="kpi-title">Model Confidence</div>
@@ -229,21 +244,21 @@ with tab1:
     col_chart1, col_chart2 = st.columns([2, 1])
     
     with col_chart1:
-        st.subheader("Historical vs. Predicted Biomass")
+        st.subheader(f"Historical vs. Predicted Production for {sel_species}")
         # Base historical data
-        fig = px.area(hist_df, x="year_int", y="wildfishBiomass_kg", 
-                      title="Total Wildfish Biomass Over Time",
-                      labels={"year_int": "Year", "wildfishBiomass_kg": "Biomass (kg)"},
+        fig = px.area(hist_df, x="Year", y="Production_Quantity", 
+                      title=f"{sel_country} - {sel_species} in {sel_area}",
+                      labels={"Year": "Year", "Production_Quantity": "Production (Tonnes)"},
                       color_discrete_sequence=["#3B82F6"])
         
         # Add prediction marker
         fig.add_trace(go.Scatter(
             x=[sel_year], 
-            y=[pred_biomass],
+            y=[pred_production],
             mode='markers+text',
             name=f'Prediction ({sel_year})',
             marker=dict(color=risk_hex, size=15, symbol='star'),
-            text=[f"{pred_biomass:,.0f} kg"],
+            text=[f"{pred_production:,.0f} t"],
             textposition="top center"
         ))
         
@@ -259,21 +274,21 @@ with tab1:
         st.subheader("Risk Thresholds")
         gauge = go.Figure(go.Indicator(
             mode = "gauge+number",
-            value = pred_biomass,
+            value = pred_production,
             domain = {'x': [0, 1], 'y': [0, 1]},
             title = {'text': "Stock Level"},
             gauge = {
-                'axis': {'range': [None, avg_biomass * 1.5]},
+                'axis': {'range': [None, max(pred_production * 1.5, avg_production * 1.5)]},
                 'bar': {'color': "#1E293B"},
                 'steps': [
-                    {'range': [0, avg_biomass * 0.5], 'color': "#EF4444"},
-                    {'range': [avg_biomass * 0.5, avg_biomass * 0.8], 'color': "#F59E0B"},
-                    {'range': [avg_biomass * 0.8, avg_biomass * 1.5], 'color': "#22C55E"}
+                    {'range': [0, avg_production * 0.5], 'color': "#EF4444"},
+                    {'range': [avg_production * 0.5, avg_production * 0.8], 'color': "#F59E0B"},
+                    {'range': [avg_production * 0.8, max(pred_production * 1.5, avg_production * 1.5)], 'color': "#22C55E"}
                 ],
                 'threshold': {
                     'line': {'color': "white", 'width': 4},
                     'thickness': 0.75,
-                    'value': pred_biomass
+                    'value': pred_production
                 }
             }
         ))
@@ -281,31 +296,54 @@ with tab1:
         st.plotly_chart(gauge, use_container_width=True)
 
 with tab2:
-    st.subheader(f"Monitoring Zone: {sel_region} ({sel_mgArea})")
-    st.markdown("This map shows the general monitored region and its current risk status overlay.")
+    st.subheader(f"Global View: {sel_country}")
+    st.markdown("This map shows the selected country colored by its risk status based on the selected species and area.")
     
-    # Map specific regions to general coordinates to prevent random jumping
-    region_coords = {
-        "Fitzroy": [-23.37, 150.51],
-        "Burdekin": [-19.57, 147.40],
-        "Burnett Mary": [-25.54, 152.70],
-        "Mackay Whitsunday": [-21.14, 149.18],
-        "Wet Tropics": [-17.52, 146.00],
-        "Cape York": [-13.75, 143.00]
-    }
+    # Get ISO3 code for map
+    iso3_code = filtered_by_country['ISO3'].iloc[0] if not filtered_by_country.empty else None
     
-    # Default to a central GBR location if region not found
-    coords = region_coords.get(sel_region, [-20.0, 145.0])
-    
-    df_map = pd.DataFrame({
-        "lat": [coords[0]],
-        "lon": [coords[1]],
-        "color": [risk_hex],
-        "size": [50000] # Adjust size for visual presence
-    })
-
-    # st.map natively handles everything without Mapbox API tokens
-    st.map(df_map, latitude="lat", longitude="lon", color="color", size="size", zoom=5)
+    if iso3_code:
+        # Create a dataframe for the map with just the selected country
+        map_df = pd.DataFrame({
+            "ISO3": [iso3_code],
+            "Country": [sel_country],
+            "Risk": [risk_status],
+            "Color": [1] # Dummy value for continuous color scale
+        })
+        
+        # We use a trick with continuous color scale to force our risk color
+        color_scale = [[0.0, risk_hex], [1.0, risk_hex]]
+        
+        fig_map = px.choropleth(
+            map_df,
+            locations="ISO3",
+            color="Color",
+            hover_name="Country",
+            hover_data={"Risk": True, "Color": False, "ISO3": False},
+            color_continuous_scale=color_scale,
+            projection="natural earth",
+        )
+        
+        fig_map.update_layout(
+            template="plotly_dark",
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            geo=dict(
+                showframe=False,
+                showcoastlines=True,
+                coastlinecolor="rgba(255, 255, 255, 0.3)",
+                showland=True,
+                landcolor="rgba(255, 255, 255, 0.05)",
+                showocean=True,
+                oceancolor="rgba(0, 0, 0, 0.1)",
+                bgcolor='rgba(0,0,0,0)'
+            ),
+            margin=dict(l=0, r=0, t=0, b=0),
+            coloraxis_showscale=False
+        )
+        st.plotly_chart(fig_map, use_container_width=True)
+    else:
+        st.warning("ISO3 code not found for mapping.")
 
 st.markdown("---")
-st.caption("Developed for Sustainable Fisheries Management | Model: XGBoost Regressor")
+st.caption("Developed for Global Sustainable Fisheries Management | Model: XGBoost Regressor")
