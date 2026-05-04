@@ -50,7 +50,19 @@ st.markdown("""
 # -------------------------------------------------------------------
 @st.cache_resource
 def load_model():
-    model_path = os.path.join("models", "model.pkl")
+    BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+    model_path = os.path.join(BASE_DIR, "models", "model.pkl")
+    
+    # Temporary debug logs
+    print("--- DEBUG INFO ---")
+    print("Current Working Directory:", os.getcwd())
+    print("BASE_DIR:", BASE_DIR)
+    if os.path.exists(BASE_DIR):
+        print("Files in BASE_DIR:", os.listdir(BASE_DIR))
+    print("Model Path:", model_path)
+    print("Model exists:", os.path.exists(model_path))
+    print("------------------")
+    
     if not os.path.exists(model_path):
         return None
     with open(model_path, "rb") as f:
@@ -58,7 +70,15 @@ def load_model():
 
 @st.cache_data
 def load_data():
-    file_path = r"2024-09-09_Coggan_Anthea_62174v5\data\ESVC_all data_Provisioning_Wild_fish_biomass_WT and CY as CAPOM_Fitzroy as KCB.xlsx"
+    BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+    file_path = os.path.join(BASE_DIR, "data.xlsx")
+    
+    # Temporary debug logs
+    print("--- DEBUG INFO ---")
+    print("Data Path:", file_path)
+    print("Data exists:", os.path.exists(file_path))
+    print("------------------")
+    
     if not os.path.exists(file_path):
         return pd.DataFrame()
     df = pd.read_excel(file_path)

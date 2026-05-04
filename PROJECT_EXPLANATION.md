@@ -1,4 +1,4 @@
-# 🌊 Fisheries Predictive Monitoring System
+# 🌊 git rm -r --cached venv
 
 ## 🎣 The Problem
 Overfishing and environmental changes are putting massive stress on our ocean's ecosystems. For authorities and fisheries to make sustainable decisions—like setting the right fishing quotas—they need to know how many fish are actually out there. But measuring wild fish populations across vast oceans is incredibly difficult, and waiting for manual surveys often means we react too late to population collapses.
